@@ -34,13 +34,16 @@ def y_rows(df, i):
     e1 = df['era'][-1]
     return df[df.era.isin(era_subsample(e0, e1, i))][TARGET].to_numpy()
 
-# def blocks(df, i, j):
-#     e0 = df['era'][0]
-#     e1 = df['era'][-1]
-#     df = df[df.era.isin(era_subsample(e0, e1, i))]
-#     X = df[feature_group(j)].to_numpy()
-#     y = df[TARGET].to_numpy()
-#     return X, y
+def rank_pct(x):
+    return x.rank(pct=True, method="first")
 
-# def average_of_arrays(arrays):
-#     return np.mean(np.array(arrays), axis=0)
+def blocks(df, i, j):
+    e0 = df['era'][0]
+    e1 = df['era'][-1]
+    df = df[df.era.isin(era_subsample(e0, e1, i))]
+    X = df[feature_group(j)].to_numpy()
+    y = df[TARGET].to_numpy()
+    return X, y
+
+def average_of_arrays(arrays):
+    return np.mean(np.array(arrays), axis=0)
