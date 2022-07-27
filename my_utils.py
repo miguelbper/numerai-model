@@ -34,6 +34,22 @@ def y_rows(df, i):
     e1 = df['era'][-1]
     return df[df.era.isin(era_subsample(e0, e1, i))][TARGET].to_numpy()
 
+def X_(df, eras = None):
+    if eras == None:
+        return df[FEATURES].to_numpy()
+    else:
+        e0 = df['era'][0]
+        e1 = df['era'][-1]
+        return df[df.era.isin(era_subsample(e0, e1, eras))][FEATURES].to_numpy()
+
+def y_(df, eras = None):
+    if eras == None:
+        return df[TARGET].to_numpy()
+    else:
+        e0 = df['era'][0]
+        e1 = df['era'][-1]
+        return df[df.era.isin(era_subsample(e0, e1, eras))][TARGET].to_numpy()
+
 def rank_pct(x):
     return x.rank(pct=True, method="first")
 
