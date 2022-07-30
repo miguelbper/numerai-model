@@ -16,11 +16,33 @@ FEATURES_N = FEATURE_METADATA['feature_sets']['fncv3_features']
 ERA = 'era'
 DATA = 'data_type'
 TARGET = 'target_nomi_v4_20'
+PRED = 'prediction'
 
 FEATURES = FEATURES_L
 N_FEATURES = len(FEATURES)
 COLUMNS = [ERA, DATA] + FEATURES + [TARGET]
 
+# scores
+def rank_pct(x):
+    return x.rank(pct=True, method='first')
+
+def numerai_score(y_true, y_pred, groups=None):
+    if groups is None:
+        r_pred = rank_pct(y_pred)
+    else:
+        r_pred = y_pred.groupby(groups).transform(rank_pct)
+    return np.corrcoef(y_true, r_pred)[0, 1]
+
+def exposure(f, y, groups=None):
+    if groups is None:
+        f_rank = rank_pct(f)
+        y_rank = rank_pct(y)
+    else:
+        f_rank = f.groupby(groups).apply(rank_pct)
+        y_rank = y.groupby(groups).apply(rank_pct)
+    return np.corrcoef(f_rank, y_rank)[0, 1]
+
+# old
 def string_from_class(c):
     s = str(c)
     s = re.sub(r'[^A-Za-z0-9.]+', '', s)
@@ -61,9 +83,6 @@ def y_(df, eras = None):
         e0 = df['era'][0]
         e1 = df['era'][-1]
         return df[df.era.isin(era_subsample(e0, e1, eras))][TARGET].to_numpy()
-
-def rank_pct(x):
-    return x.rank(pct=True, method="first")
 
 def blocks(df, i, j):
     e0 = df['era'][0]
