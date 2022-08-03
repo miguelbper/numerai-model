@@ -5,6 +5,7 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 from sklearn.model_selection._split import _BaseKFold, indexable, _num_samples
 from copy import deepcopy
+from math import ceil
 
 # ------------
 # column names
@@ -40,6 +41,39 @@ del f
 # -------
 # classes
 
+class FeatureSubsampler(BaseEstimator, RegressorMixin):
+    def __init__(self, estimator, n_features_per_group):
+        self.estimator = estimator
+        self.n_features_per_group = n_features_per_group
+
+    def fit(self, X, y, **fit_params):
+        X, y = check_X_y(X, y, accept_sparse=True)
+        n = len(X[0])
+        l = self.n_features_per_group
+        l = l if l > 0 else n
+        k = ceil(n / l)
+        self.model = [deepcopy(self.estimator) for i in range(k)]
+        for i in range(k):
+            feature_indices = range(i * l, min((i + 1) * l, n))
+            self.model[i].fit(X[:, feature_indices], y, **fit_params)
+        self.is_fitted_ = True
+        return self
+
+    def predict(self, X):
+        X = check_array(X, accept_sparse=True)
+        check_is_fitted(self, 'is_fitted_')
+        n = len(X[0])
+        l = self.n_features_per_group
+        l = l if l > 0 else n
+        k = ceil(n / l)
+        y_pred = 0
+        for i in range(k):
+            feature_indices = range(i * l, min((i + 1) * l, n))
+            y_pred += self.model[i].predict(X[:, feature_indices])
+        y_pred /= k
+        return y_pred
+
+
 class EraSubsampler(BaseEstimator, RegressorMixin):
     def __init__(self, estimator, n_subsamples):
         self.estimator = estimator
@@ -67,10 +101,8 @@ class EraSubsampler(BaseEstimator, RegressorMixin):
         y_pred /= k
         return y_pred
 
-# The following class is taken from the examples from Numerai
 
-# Because the TimeSeriesSplit class in sklearn does not use groups and won't 
-# respect era boundries, we implement a version that will
+# The following class is taken from the examples from Numerai
 class TimeSeriesSplitGroups(_BaseKFold):
     def __init__(self, n_splits=5):
         super().__init__(n_splits, shuffle=False, random_state=None)
