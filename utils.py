@@ -1,6 +1,7 @@
 import json
 import joblib
 import numpy as np
+import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.model_selection._split import _BaseKFold, indexable, _num_samples
@@ -21,6 +22,29 @@ FEATURES_S = feature_metadata['feature_sets']['small']
 # FEATURES_3 = feature_metadata['feature_sets']['v3_equivalent_features']
 # FEATURES_N = feature_metadata['feature_sets']['fncv3_features']
 
+# https://forum.numer.ai/t/removing-dangerous-features/5627
+INVALID_FEATURES = ['feature_palpebral_univalve_pennoncel',
+                    'feature_unsustaining_chewier_adnoun',
+                    'feature_brainish_nonabsorbent_assurance',
+                    'feature_coastal_edible_whang',
+                    'feature_disprovable_topmost_burrower',
+                    'feature_trisomic_hagiographic_fragrance',
+                    'feature_queenliest_childing_ritual',
+                    'feature_censorial_leachier_rickshaw',
+                    'feature_daylong_ecumenic_lucina',
+                    'feature_steric_coxcombic_relinquishment']
+# i =  193, f = feature_palpebral_univalve_pennoncel
+# i =  208, f = feature_unsustaining_chewier_adnoun
+# i =  403, f = feature_brainish_nonabsorbent_assurance
+# i =  418, f = feature_coastal_edible_whang
+# i =  613, f = feature_disprovable_topmost_burrower
+# i =  628, f = feature_trisomic_hagiographic_fragrance
+# i =  823, f = feature_queenliest_childing_ritual
+# i =  838, f = feature_censorial_leachier_rickshaw
+# i = 1033, f = feature_daylong_ecumenic_lucina
+# i = 1048, f = feature_steric_coxcombic_relinquishment
+
+
 ERA = 'era'
 DATA = 'data_type'
 X_COLS = FEATURES_L
@@ -37,7 +61,25 @@ del f
 # ---------------
 # score functions
 
+def corr(a, b, rank_a=False, rank_b=False):
+    def maybe_rank(a, rank):
+        if isinstance(rank, pd.Series):
+            return a.groupby(rank).apply(lambda x: x.rank(pct=True))
+        elif rank:
+            return a.rank(pct=True)
+        else:
+            return a
 
+    def to_np(df):
+        if isinstance(df, np.ndarray):
+            return df
+        else:
+            return df.to_numpy()
+    
+    a = to_np(maybe_rank(a, rank_a))
+    b = to_np(maybe_rank(b, rank_b))
+    n = 1 if a.ndim == 1 else len(a[0])
+    return np.corrcoef(a, b, rowvar=False)[0:n, n:].squeeze()
 
 # -------
 # classes
