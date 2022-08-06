@@ -46,10 +46,13 @@ INVALID_FEATURES = ['feature_palpebral_univalve_pennoncel',
 # i = 1033, f = feature_daylong_ecumenic_lucina
 # i = 1048, f = feature_steric_coxcombic_relinquishment
 
+FEAT_L = [f for f in FEATURES_L if f not in INVALID_FEATURES]
+FEAT_M = [f for f in FEATURES_M if f not in INVALID_FEATURES]
+FEAT_S = [f for f in FEATURES_S if f not in INVALID_FEATURES]
 
 ERA = 'era'
 DATA = 'data_type'
-X_COLS = FEATURES_L
+X_COLS = FEAT_L
 Y_COLS = joblib.load('data/target_names.pkl')
 Y_TRUE = 'target_nomi_v4_20'
 Y_PRED = 'target_prediction'
@@ -78,13 +81,15 @@ def corr(a, b, rank_a=False, rank_b=False):
     a = np_(maybe_rank(pd.DataFrame(a), rank_a))
     b = np_(maybe_rank(pd.DataFrame(b), rank_b))
     n = 1 if a.ndim == 1 else len(a[0])
-    return np.corrcoef(a, b, rowvar=False)[0:n, n:].squeeze()
+    c = np.corrcoef(a, b, rowvar=False)[0:n, n:].squeeze()
+    c = c.item() if c.ndim == 0 else c
+    return c
 
 # -------
 # classes
 
 class FeatureSubsampler(BaseEstimator, RegressorMixin):
-    def __init__(self, estimator, n_features_per_group):
+    def __init__(self, estimator, n_features_per_group=208):
         self.estimator = estimator
         self.n_features_per_group = n_features_per_group
 
@@ -117,7 +122,7 @@ class FeatureSubsampler(BaseEstimator, RegressorMixin):
 
 
 class EraSubsampler(BaseEstimator, RegressorMixin):
-    def __init__(self, estimator, n_subsamples):
+    def __init__(self, estimator, n_subsamples=4):
         self.estimator = estimator
         self.n_subsamples = n_subsamples
 
