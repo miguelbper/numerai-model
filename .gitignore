@@ -132,3 +132,5 @@ dmypy.json
 *.parquet
 *.png
 *.csv
+*.pkl
+*.temp

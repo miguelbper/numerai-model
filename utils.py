@@ -10,6 +10,8 @@ from sklearn.model_selection._split import _BaseKFold, indexable, _num_samples
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 from copy import deepcopy
 from math import ceil
+from datetime import datetime
+from numerapi import NumerAPI
 
 # ------------
 # column names
@@ -69,6 +71,7 @@ del f
 def np_(df):
     return df if isinstance(df, np.ndarray) else df.to_numpy()
 
+
 def maybe_rank(a, rank):
     if isinstance(rank, np.ndarray) or isinstance(rank, pd.Series):
         return a.groupby(np_(rank)).apply(lambda x: x.rank(pct=True))
@@ -77,6 +80,7 @@ def maybe_rank(a, rank):
     else:
         return a
 
+
 def corr(a, b, rank_a=False, rank_b=False):
     a = np_(maybe_rank(pd.DataFrame(a), rank_a))
     b = np_(maybe_rank(pd.DataFrame(b), rank_b))
@@ -84,6 +88,50 @@ def corr(a, b, rank_a=False, rank_b=False):
     c = np.corrcoef(a, b, rowvar=False)[0:n, n:].squeeze()
     c = c.item() if c.ndim == 0 else c
     return c
+
+
+# objective function for corr
+# Note: if we wish to use this objective function with LightGBM, we need to 
+# take into account the fact that Gradient Boosted Decision Trees start by 
+# considering vector with all entries equal to the average of y_true. Such
+# vector has 0 standard deviation, and grad/hess are not defined. We can fix
+# this by training some random tree and feeding that tree to LGBM as init_model
+def objective_corr(y_true, y_pred):
+    m = len(y_true)
+
+    var_e = (m - 1) / m**2
+    std_t = np.std(y_true)
+    std_p = np.std(y_pred)
+
+    cov_tp = np.cov(y_true, y_pred, ddof=0)[0, 1]
+    cov_ep = (y_pred - np.mean(y_pred)) / m
+    cov_et = (y_true - np.mean(y_true)) / m
+
+    grad = - (- cov_tp * cov_ep / std_p**3 + cov_et / std_p) / std_t
+    hess = - (- 2 * cov_ep * cov_et
+              + 3 * cov_ep**2 * cov_tp / std_p**2
+              - cov_tp * var_e) / (std_t * std_p**3)
+
+    return grad, hess
+
+
+# objective function for corr, numeric (just to test that objective_corr
+# is correct)
+def objective_corr_num(y_true, y_pred):
+    t = y_true
+    p = y_pred
+    h = 10 ** (-8)
+    m = len(t)
+    I = np.eye(m)
+
+    corr_zero = corr(t, p)
+    corr_plus = corr(t, (p + h*I).T)
+    corr_minu = corr(t, (p - h*I).T)
+
+    grad = - (corr_plus - corr_zero) / h
+    hess = - (corr_plus + corr_minu - 2*corr_zero) / h**2
+
+    return grad, hess
 
 # -------
 # classes
@@ -266,3 +314,21 @@ class TimeSeriesSplitGroups(_BaseKFold):
             yield (indices[groups.isin(group_list[:test_start])],
                    indices[groups.isin(group_list[test_start
                                                   :test_start + test_size])])
+
+# -----
+# utils
+
+def now_dt():
+    return datetime.now().strftime('%Y-%m-%d-%H-%M')
+
+
+def read_data(name):
+    if name == 'live':
+        rnd = NumerAPI().get_current_round()
+        name = f'live_{rnd}'
+    df = pd.read_parquet(f'data/{name}.parquet', columns=COLUMNS)
+    if name.startswith('live'):
+        df[ERA] = rnd + 695
+    df[ERA] = df[ERA].astype('int32')
+    df[Y_COLS] = df[Y_COLS].fillna(value=0.5)
+    return df
