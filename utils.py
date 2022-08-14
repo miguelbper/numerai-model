@@ -322,13 +322,16 @@ def now_dt():
     return datetime.now().strftime('%Y-%m-%d-%H-%M')
 
 
-def read_data(name):
+def read_data(name, x_cols=X_COLS, eras=None):
     if name == 'live':
         rnd = NumerAPI().get_current_round()
         name = f'live_{rnd}'
-    df = pd.read_parquet(f'data/{name}.parquet', columns=COLUMNS)
+    cols = [ERA, DATA] + x_cols + Y_COLS
+    df = pd.read_parquet(f'data/{name}.parquet', columns=cols)
     if name.startswith('live'):
         df[ERA] = rnd + 695
     df[ERA] = df[ERA].astype('int32')
     df[Y_COLS] = df[Y_COLS].fillna(value=0.5)
+    if eras is not None:
+        df = df[df[ERA].isin(eras)]
     return df
