@@ -12,6 +12,7 @@ from copy import deepcopy
 from math import ceil
 from datetime import datetime
 from numerapi import NumerAPI
+from tqdm import trange, tqdm
 
 # ------------
 # column names
@@ -147,7 +148,7 @@ class FeatureSubsampler(BaseEstimator, RegressorMixin):
         l = self.n_features_per_group
         l = l if l > 0 else n
         k = ceil(n / l)
-        self.model = [deepcopy(self.estimator) for i in range(k)]
+        self.model = [deepcopy(self.estimator) for _ in range(k)]
         for i in range(k):
             feature_indices = range(i * l, min((i + 1) * l, n))
             self.model[i].fit(X[:, feature_indices], y, **fit_params)
@@ -179,8 +180,8 @@ class EraSubsampler(BaseEstimator, RegressorMixin):
         e0 = eras.min()
         e1 = eras.max() + 1
         k = self.n_subsamples
-        self.model = [deepcopy(self.estimator) for i in range(k)]
-        for i in range(k):
+        self.model = [deepcopy(self.estimator) for _ in range(k)]
+        for i in trange(k, desc='EraSubsampler fit'):
             self.model[i].fit(X[eras.isin(np.arange(e0 + i, e1, k))], 
                               y[eras.isin(np.arange(e0 + i, e1, k))])
         self.is_fitted_ = True
@@ -191,7 +192,7 @@ class EraSubsampler(BaseEstimator, RegressorMixin):
         check_is_fitted(self, 'is_fitted_')
         k = self.n_subsamples
         y_pred = 0
-        for i in range(k):
+        for i in trange(k, desc='EraSubsampler prd'):
             y_pred += self.model[i].predict(X)
         y_pred /= k
         return y_pred
