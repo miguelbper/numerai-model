@@ -17,6 +17,7 @@ from math import ceil
 from datetime import datetime
 from numerapi import NumerAPI
 from tqdm import trange, tqdm
+from itertools import product
 
 
 # ======================================================================
@@ -197,7 +198,7 @@ class EraSubsampler(BaseEstimator, RegressorMixin):
         e1 = eras.max() + 1
         k = self.n_subsamples
         self.model = [deepcopy(self.estimator) for _ in range(k)]
-        for i in trange(k, desc='EraSubsampler fit'):
+        for i in tqdm_(range(k), desc='EraSubsampler fit'):
             self.model[i].fit(X[eras.isin(np.arange(e0 + i, e1, k))], 
                               y[eras.isin(np.arange(e0 + i, e1, k))])
         self.is_fitted_ = True
@@ -208,7 +209,7 @@ class EraSubsampler(BaseEstimator, RegressorMixin):
         check_is_fitted(self, 'is_fitted_')
         k = self.n_subsamples
         y_pred = 0
-        for i in trange(k, desc='EraSubsampler prd'):
+        for i in tqdm_(range(k), desc='EraSubsampler predict'):
             y_pred += self.model[i].predict(X)
         y_pred /= k
         return y_pred
@@ -354,3 +355,41 @@ def read_data(name, x_cols, eras=None):
     if eras is not None:
         df = df[df[ERA].isin(eras)]
     return df
+
+
+def tqdm_(iterable=None,
+          desc=None,
+          total=None,
+          leave=True,
+          position=None):
+    iter = tqdm(
+        iterable=iterable,
+        total=total,
+        leave=leave,
+        bar_format='{l_bar}{bar:20}{r_bar}' + f' (desc: {desc})',
+        position=position
+    )
+    return iter
+
+
+def maximum(f, n, k=0.01, n_iters=10000):
+    def w_new(i_dec, i_inc, w):
+        w_ret = np.copy(w)
+        w_ret[i_dec] -= k
+        w_ret[i_inc] += k
+        return w_ret
+
+    w = np.ones(n) / n
+
+    for _ in range(n_iters):
+        pairs = product(range(n), range(n))
+        values = [(f(w_new(i_dec, i_inc, w)), i_dec, i_inc)
+                  for i_dec, i_inc in pairs]
+        values = sorted(values, reverse=True)
+        _, i_dec, i_inc = values[0]
+        if i_dec == i_inc:
+            break
+        w = w_new(i_dec, i_inc, w)
+        print(f'i_dec = {i_dec}, i_inc = {i_inc}, w = {w}, f(w) = {f(w)}')
+
+    return w
