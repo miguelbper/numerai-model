@@ -1,3 +1,7 @@
+# ======================================================================
+# imports
+# ======================================================================
+
 import json
 import joblib
 import numpy as np
@@ -14,8 +18,10 @@ from datetime import datetime
 from numerapi import NumerAPI
 from tqdm import trange, tqdm
 
-# ------------
+
+# ======================================================================
 # column names
+# ======================================================================
 
 with open('data/features.json', 'r') as f:
     feature_metadata = json.load(f)
@@ -28,26 +34,18 @@ FEATURES_S = feature_metadata['feature_sets']['small']
 # FEATURES_N = feature_metadata['feature_sets']['fncv3_features']
 
 # https://forum.numer.ai/t/removing-dangerous-features/5627
-INVALID_FEATURES = ['feature_palpebral_univalve_pennoncel',
-                    'feature_unsustaining_chewier_adnoun',
-                    'feature_brainish_nonabsorbent_assurance',
-                    'feature_coastal_edible_whang',
-                    'feature_disprovable_topmost_burrower',
-                    'feature_trisomic_hagiographic_fragrance',
-                    'feature_queenliest_childing_ritual',
-                    'feature_censorial_leachier_rickshaw',
-                    'feature_daylong_ecumenic_lucina',
-                    'feature_steric_coxcombic_relinquishment']
-# i =  193, f = feature_palpebral_univalve_pennoncel
-# i =  208, f = feature_unsustaining_chewier_adnoun
-# i =  403, f = feature_brainish_nonabsorbent_assurance
-# i =  418, f = feature_coastal_edible_whang
-# i =  613, f = feature_disprovable_topmost_burrower
-# i =  628, f = feature_trisomic_hagiographic_fragrance
-# i =  823, f = feature_queenliest_childing_ritual
-# i =  838, f = feature_censorial_leachier_rickshaw
-# i = 1033, f = feature_daylong_ecumenic_lucina
-# i = 1048, f = feature_steric_coxcombic_relinquishment
+INVALID_FEATURES = [
+    'feature_palpebral_univalve_pennoncel',    # i =  193
+    'feature_unsustaining_chewier_adnoun',     # i =  208
+    'feature_brainish_nonabsorbent_assurance', # i =  403
+    'feature_coastal_edible_whang',            # i =  418
+    'feature_disprovable_topmost_burrower',    # i =  613
+    'feature_trisomic_hagiographic_fragrance', # i =  628
+    'feature_queenliest_childing_ritual',      # i =  823
+    'feature_censorial_leachier_rickshaw',     # i =  838
+    'feature_daylong_ecumenic_lucina',         # i = 1033
+    'feature_steric_coxcombic_relinquishment', # i = 1048
+]
 
 FEAT_L = [f for f in FEATURES_L if f not in INVALID_FEATURES]
 FEAT_M = [f for f in FEATURES_M if f not in INVALID_FEATURES]
@@ -56,18 +54,31 @@ FEAT_S = [f for f in FEATURES_S if f not in INVALID_FEATURES]
 ERA = 'era'
 DATA = 'data_type'
 X_COLS = FEAT_L
-Y_COLS = joblib.load('data/target_names.pkl')
 Y_TRUE = 'target_nomi_v4_20'
 Y_PRED = 'target_prediction'
 Y_RANK = 'prediction' 
+Y_COLS = [
+    'target_nomi_v4_20', 
+    'target_jerome_v4_20', 
+    'target_janet_v4_20', 
+    'target_ben_v4_20', 
+    'target_alan_v4_20', 
+    'target_paul_v4_20', 
+    'target_george_v4_20', 
+    'target_william_v4_20', 
+    'target_arthur_v4_20', 
+    'target_thomas_v4_20',
+]
 
 COLUMNS = [ERA, DATA] + X_COLS + Y_COLS
 
 del feature_metadata
 del f
 
-# ---------------
+
+# ======================================================================
 # score functions
+# ======================================================================
 
 def np_(df):
     return df if isinstance(df, np.ndarray) else df.to_numpy()
@@ -91,7 +102,10 @@ def corr(a, b, rank_a=False, rank_b=False):
     return c
 
 
+# ----------------------------------------------------------------------
 # objective function for corr
+# ----------------------------------------------------------------------
+
 # Note: if we wish to use this objective function with LightGBM, we need to 
 # take into account the fact that Gradient Boosted Decision Trees start by 
 # considering vector with all entries equal to the average of y_true. Such
@@ -134,8 +148,10 @@ def objective_corr_num(y_true, y_pred):
 
     return grad, hess
 
-# -------
+
+# ======================================================================
 # classes
+# ======================================================================
 
 class FeatureSubsampler(BaseEstimator, RegressorMixin):
     def __init__(self, estimator, n_features_per_group=208):
@@ -316,14 +332,16 @@ class TimeSeriesSplitGroups(_BaseKFold):
                    indices[groups.isin(group_list[test_start
                                                   :test_start + test_size])])
 
-# -----
+# ======================================================================
 # utils
+# ======================================================================
+
 
 def now_dt():
     return datetime.now().strftime('%Y-%m-%d-%H-%M')
 
 
-def read_data(name, x_cols=X_COLS, eras=None):
+def read_data(name, x_cols, eras=None):
     if name == 'live':
         rnd = NumerAPI().get_current_round()
         name = f'live_{rnd}'
