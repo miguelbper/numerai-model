@@ -107,11 +107,12 @@ def corr(a, b, rank_a=False, rank_b=False):
 # objective function for corr
 # ----------------------------------------------------------------------
 
-# Note: if we wish to use this objective function with LightGBM, we need to 
-# take into account the fact that Gradient Boosted Decision Trees start by 
-# considering vector with all entries equal to the average of y_true. Such
-# vector has 0 standard deviation, and grad/hess are not defined. We can fix
-# this by training some random tree and feeding that tree to LGBM as init_model
+# Note: if we wish to use this objective function with LightGBM, we need 
+# to take into account the fact that Gradient Boosted Decision Trees 
+# start by considering vector with all entries equal to the average of 
+# y_true. Such vector has 0 standard deviation, and grad/hess are not 
+# defined. We can fix this by training some random tree and feeding that
+# tree to LGBM as init_model
 def objective_corr(y_true, y_pred):
     m = len(y_true)
 
@@ -154,8 +155,18 @@ def objective_corr_num(y_true, y_pred):
 # classes
 # ======================================================================
 
+
+def tqdm_(iter, desc, position):
+    if position is not None:
+        iter = tqdm(iter,
+                    desc=desc,
+                    leave=None,
+                    position=position)
+    return iter
+
+
 class FeatureSubsampler(BaseEstimator, RegressorMixin):
-    def __init__(self, estimator, n_features_per_group=208):
+    def __init__(self, estimator, n_features_per_group):
         self.estimator = estimator
         self.n_features_per_group = n_features_per_group
 
@@ -166,7 +177,7 @@ class FeatureSubsampler(BaseEstimator, RegressorMixin):
         l = l if l > 0 else n
         k = ceil(n / l)
         self.model = [deepcopy(self.estimator) for _ in range(k)]
-        for i in range(k):
+        for i in tqdm(range(k), desc='FeatureSubsampler fit'):
             feature_indices = range(i * l, min((i + 1) * l, n))
             self.model[i].fit(X[:, feature_indices], y, **fit_params)
         self.is_fitted_ = True
@@ -180,7 +191,7 @@ class FeatureSubsampler(BaseEstimator, RegressorMixin):
         l = l if l > 0 else n
         k = ceil(n / l)
         y_pred = 0
-        for i in range(k):
+        for i in tqdm(range(k), desc='FeatureSubsampler predict'):
             feature_indices = range(i * l, min((i + 1) * l, n))
             y_pred += self.model[i].predict(X[:, feature_indices])
         y_pred /= k
@@ -188,7 +199,7 @@ class FeatureSubsampler(BaseEstimator, RegressorMixin):
 
 
 class EraSubsampler(BaseEstimator, RegressorMixin):
-    def __init__(self, estimator, n_subsamples=4):
+    def __init__(self, estimator, n_subsamples):
         self.estimator = estimator
         self.n_subsamples = n_subsamples
 
@@ -198,7 +209,7 @@ class EraSubsampler(BaseEstimator, RegressorMixin):
         e1 = eras.max() + 1
         k = self.n_subsamples
         self.model = [deepcopy(self.estimator) for _ in range(k)]
-        for i in tqdm_(range(k), desc='EraSubsampler fit'):
+        for i in tqdm(range(k), desc='EraSubsampler fit'):
             self.model[i].fit(X[eras.isin(np.arange(e0 + i, e1, k))], 
                               y[eras.isin(np.arange(e0 + i, e1, k))])
         self.is_fitted_ = True
@@ -209,34 +220,30 @@ class EraSubsampler(BaseEstimator, RegressorMixin):
         check_is_fitted(self, 'is_fitted_')
         k = self.n_subsamples
         y_pred = 0
-        for i in tqdm_(range(k), desc='EraSubsampler predict'):
+        for i in tqdm(range(k), desc='EraSubsampler predict'):
             y_pred += self.model[i].predict(X)
         y_pred /= k
         return y_pred
 
 
-class MultiTargetTrainer(BaseEstimator, RegressorMixin):
-    def __init__(self, estimator, targets=None, n_jobs=None):
+class MultiOutputTrainer(BaseEstimator, RegressorMixin):
+    def __init__(self, estimator, weights):
         self.estimator = estimator
-        self.targets = targets
-        self.n_jobs = n_jobs
+        self.weights = weights
 
     def fit(self, X, y, **fit_params):
-        self.model = MultiOutputRegressor(self.estimator, n_jobs=self.n_jobs)
+        self.model = MultiOutputRegressor(self.estimator)
         self.model.fit(X, y, **fit_params)
         self.is_fitted_ = True
         return self
 
     def predict(self, X):
         check_is_fitted(self, 'is_fitted_')
-        y_preds = self.model.predict(X)
-        indices = self.targets
-        indices = indices if indices is not None else range(len(y_preds[0]))
-        return np.average(y_preds[:, indices], axis=1)
+        return self.model.predict(X) @ self.weights
 
 
 # alternative way of implementing FeatureNeutralizer:
-# instead of giving groups as separate argument, give them inside matrix X
+# instead of giving groups as separate argument, give them inside X
 # adv: more compatible with sklearn
 # disadv: can't use GridSearchCV anyway (unpractical), bandaid, 
 # less clarity when using class
@@ -252,6 +259,7 @@ class FeatureNeutralizer(BaseEstimator):
         self.is_fitted_ = True
         return self
     
+    # this function is only meant to be used by predict
     def compute_y_pred(self, X):
         # checks
         X = check_array(X, accept_sparse=True)
@@ -259,6 +267,7 @@ class FeatureNeutralizer(BaseEstimator):
         # computations
         self.y_pred = self.estimator.predict(X)
 
+    # this function is only meant to be used by predict
     def compute_y_linr(self, X, groups):
         # checks
         X = check_array(X, accept_sparse=True)
@@ -355,21 +364,6 @@ def read_data(name, x_cols, eras=None):
     if eras is not None:
         df = df[df[ERA].isin(eras)]
     return df
-
-
-def tqdm_(iterable=None,
-          desc=None,
-          total=None,
-          leave=True,
-          position=None):
-    iter = tqdm(
-        iterable=iterable,
-        total=total,
-        leave=leave,
-        bar_format='{l_bar}{bar:20}{r_bar}' + f' (desc: {desc})',
-        position=position
-    )
-    return iter
 
 
 def maximum(f, n, k=0.01, n_iters=10000):

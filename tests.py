@@ -2,16 +2,14 @@ import joblib
 import numpy as np
 import pandas as pd
 from pprint import pprint
-# ar = np.random.rand(6*10**6, 9)
-# print(f'ar = {ar}')
-# print(f'size = {ar.nbytes / 10**9} GB')
+from tqdm import tqdm
+from utils import *
 
-ran_w1 = [x / 100 for x in range(0, 25, 5)] # np.arange(0.1, 0.2, 0.01)
-ran_w2 = [x / 100 for x in range(-35, 5, 5)] # np.arange(0, -0.3, -0.05)
-ran_w4 = [x / 100 for x in range(0, 25, 5)] # np.arange(0.1, 0.2, 0.01)
-ran_w8 = [x / 100 for x in range(20, 45, 5)] # np.arange(0.3, 0.4, 0.01)
+y_inds = [0, 1, 2, 4, 8]
+y_cols = [Y_COLS[i] for i in y_inds]
 
-print(ran_w1)
-print(ran_w2)
-print(ran_w4)
-print(ran_w8)
+print(y_cols)
+
+w = np.array([0.6, 0.1, -0.25, 0, 0.2, 0, 0, 0, 0.35, 0])
+w = np.array([w[i] for i in y_inds])
+print(w)
