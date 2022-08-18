@@ -390,6 +390,6 @@ def maximum(f, n, k=0.01, n_iters=10000):
         if i_dec == i_inc:
             break
         w = w_new(i_dec, i_inc, w)
-        print(f'i_dec = {i_dec}, i_inc = {i_inc}, w = {w}, f(w) = {f(w)}')
+        # print(f'i_dec = {i_dec}, i_inc = {i_inc}, w = {w}, f(w) = {f(w)}')
 
     return w
