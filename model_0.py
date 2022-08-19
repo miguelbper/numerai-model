@@ -26,18 +26,18 @@ napi.download_dataset('v4/live_int8.parquet', f'data/live_{round}.parquet')
 # cross validation
 # ======================================================================
 
+params = {
+    'n_estimators': 2000,
+    'learning_rate': 0.01,
+    'max_depth': 5,
+    'num_leaves': 2**5,
+    'colsample_bytree': 0.1,
+    'device': 'gpu',
+}
+
 do_cv = False
 
 if do_cv:
-
-    params = {
-        'n_estimators': 2000,
-        'learning_rate': 0.01,
-        'max_depth': 5,
-        'num_leaves': 2**5,
-        'colsample_bytree': 0.1,
-        'device': 'gpu',
-    }
 
     x_cols = FEAT_L
     eras = None
@@ -298,7 +298,7 @@ model_name = 'model-0/saved-variables/lgbm.pkl'
 try:
     model = joblib.load(model_name)
 except:
-    df = read_data('train')
+    df = read_data('train', FEAT_L)
     model.fit(df[X_COLS], df[y_cols], eras=df[ERA])
     joblib.dump(model, model_name)
 
@@ -307,8 +307,8 @@ except:
 # validation
 # ----------------------------------------------------------------------
 
-df = read_data('validation')
-df[Y_PRED] = model.predict(df[X_COLS])
+df = read_data('validation', FEAT_L)
+df[Y_PRED] = model.predict(df[X_COLS], groups=df[ERA])
 df[Y_RANK] = df[Y_PRED].rank(pct=True)
 df[Y_RANK].to_csv(f'model-0/predictions/lgbm_val_{round}_{now_dt()}.csv')
 
@@ -317,7 +317,7 @@ df[Y_RANK].to_csv(f'model-0/predictions/lgbm_val_{round}_{now_dt()}.csv')
 # live
 # ----------------------------------------------------------------------
 
-df = read_data('live')
-df[Y_PRED] = model.predict(df[X_COLS])
+df = read_data('live', FEAT_L)
+df[Y_PRED] = model.predict(df[X_COLS], groups=df[ERA])
 df[Y_RANK] = df[Y_PRED].rank(pct=True)
 df[Y_RANK].to_csv(f'model-0/predictions/lgbm_live_{round}_{now_dt()}.csv')

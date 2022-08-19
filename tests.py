@@ -4,12 +4,20 @@ import pandas as pd
 from pprint import pprint
 from tqdm import tqdm
 from utils import *
+from sys import getsizeof
 
-y_inds = [0, 1, 2, 4, 8]
-y_cols = [Y_COLS[i] for i in y_inds]
+df = read_data('train', FEAT_L)
+X = df[X_COLS]
+y = df[Y_TRUE]
+e = df[ERA]
+del df
 
-print(y_cols)
+exposures = corr(X, y, rank_b=e)
 
-w = np.array([0.6, 0.1, -0.25, 0, 0.2, 0, 0, 0, 0.35, 0])
-w = np.array([w[i] for i in y_inds])
-print(w)
+print(f'exposures = {exposures}')
+
+# X_gp = X.groupby(e)
+# print(f'size(X_gp) = {getsizeof(X_gp) / 10**6} MB')
+# X_rk = X_gp.apply(lambda x: x.rank())
+# print(f'size(X_rk) = {getsizeof(X_rk) / 10**6} MB')
+# print(f'size(X_rk) = {X_rk.memory_usage(deep=True)}')
