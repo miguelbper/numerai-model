@@ -163,6 +163,7 @@ class FeatureSubsampler(BaseEstimator, RegressorMixin):
 
     def fit(self, X, y, **fit_params):
         X, y = check_X_y(X, y, accept_sparse=True)
+
         n = len(X[0])
         l = self.n_features_per_group
         l = l if l > 0 else n
@@ -171,12 +172,14 @@ class FeatureSubsampler(BaseEstimator, RegressorMixin):
         for i in tqdm(range(k), desc='FeatureSubsampler fit'):
             feature_indices = range(i * l, min((i + 1) * l, n))
             self.model[i].fit(X[:, feature_indices], y, **fit_params)
+
         self.is_fitted_ = True
         return self
 
     def predict(self, X):
         X = check_array(X, accept_sparse=True)
         check_is_fitted(self, 'is_fitted_')
+
         n = len(X[0])
         l = self.n_features_per_group
         l = l if l > 0 else n
@@ -186,6 +189,7 @@ class FeatureSubsampler(BaseEstimator, RegressorMixin):
             feature_indices = range(i * l, min((i + 1) * l, n))
             y_pred += self.model[i].predict(X[:, feature_indices])
         y_pred /= k
+
         return y_pred
 
 
@@ -194,26 +198,31 @@ class EraSubsampler(BaseEstimator, RegressorMixin):
         self.estimator = estimator
         self.n_subsamples = n_subsamples
 
-    def fit(self, X, y, eras):
+    def fit(self, X, y, eras, **fit_params):
         X, y = check_X_y(X, y, accept_sparse=True)
+
         e0 = eras.min()
         e1 = eras.max() + 1
         k = self.n_subsamples
         self.model = [deepcopy(self.estimator) for _ in range(k)]
         for i in tqdm(range(k), desc='EraSubsampler fit'):
             self.model[i].fit(X[eras.isin(np.arange(e0 + i, e1, k))], 
-                              y[eras.isin(np.arange(e0 + i, e1, k))])
+                              y[eras.isin(np.arange(e0 + i, e1, k))],
+                              **fit_params)
+
         self.is_fitted_ = True
         return self
 
     def predict(self, X):
         X = check_array(X, accept_sparse=True)
         check_is_fitted(self, 'is_fitted_')
+
         k = self.n_subsamples
         y_pred = 0
         for i in tqdm(range(k), desc='EraSubsampler predict'):
             y_pred += self.model[i].predict(X)
         y_pred /= k
+
         return y_pred
 
 
@@ -229,6 +238,7 @@ class MultiOutputTrainer(BaseEstimator, RegressorMixin):
         return self
 
     def predict(self, X):
+        X = check_array(X, accept_sparse=True)
         check_is_fitted(self, 'is_fitted_')
         return self.model.predict(X) @ self.weights
 
