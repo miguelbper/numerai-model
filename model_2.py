@@ -38,13 +38,19 @@ params = {
     'device': 'gpu',
 }
 
-if False:
+if True:
 
     x_cols = FEAT_L
     eras = None
     n_splits = 4
 
-    df = read_data('train', x_cols, Y_COLS, eras=eras)
+    df_1 = read_data('train', X_COLS, Y_COLS)
+    df_2 = read_data('validation', X_COLS, Y_COLS)
+    df_2 = df_2[df_2[DATA] == 'validation']
+    df = pd.concat([df_1, df_2])
+    del df_1, df_2
+    gc.collect()
+
     X = df[x_cols]
     Y = df[Y_COLS]
     y = df[Y_TRUE]
@@ -59,7 +65,7 @@ if False:
     # number of era subsamples
     # ----------------------------------------------------------------------
 
-    ran_ns = range(1, 13)
+    ran_ns = [4, 6, 7, 8, 12]
 
     cv_era = {'n_subsamples': []}
     for j in range(n_splits):
@@ -125,10 +131,10 @@ if False:
     # consider only targets 0, 1, 2, 4, 8 and choose the weights which give
     # the best corr (on average, over the splits)
 
-    ran_w1 = [x / 100 for x in range(0, 20, 5)]
-    ran_w2 = [x / 100 for x in range(-30, 5, 5)]
-    ran_w4 = [x / 100 for x in range(0, 30, 5)]
-    ran_w8 = [x / 100 for x in range(0, 45, 5)]
+    ran_w1 = [x / 100 for x in range(0, 30, 5)]
+    ran_w2 = [x / 100 for x in range(-40, 5, 5)]
+    ran_w4 = [x / 100 for x in range(0, 40, 5)]
+    ran_w8 = [x / 100 for x in range(0, 55, 5)]
     len_ws = len(ran_w1) * len(ran_w2) * len(ran_w4) * len(ran_w8)
 
     cv_tar = {
