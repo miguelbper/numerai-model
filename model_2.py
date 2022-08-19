@@ -8,7 +8,7 @@ import joblib
 import gc
 from utils import *
 
-pth = 'model-0'
+pth = 'model-2'
 
 # ======================================================================
 # download data
@@ -229,7 +229,13 @@ model_name = f'{pth}/saved-variables/model.pkl'
 try:
     model = joblib.load(model_name)
 except:
-    df = read_data('train', X_COLS, y_cols)
+    df_1 = read_data('train', X_COLS, y_cols)
+    df_2 = read_data('validation', X_COLS, y_cols)
+    df_2 = df_2[df_2[DATA] == 'validation']
+    df = pd.concat([df_1, df_2])
+    del df_1, df_2
+    gc.collect()
+
     model.fit(df[X_COLS], df[y_cols], eras=df[ERA])
     joblib.dump(model, model_name)
 
@@ -256,5 +262,5 @@ df[Y_PRED] = model.predict(df[X_COLS])
 df[Y_RANK] = df[Y_PRED].rank(pct=True)
 df[Y_RANK].to_csv(pred_name)
 
-model_id = napi.get_models()['mbp_0']
+model_id = napi.get_models()['mbp_2']
 napi.upload_predictions(pred_name, model_id=model_id)
