@@ -156,15 +156,6 @@ def objective_corr_num(y_true, y_pred):
 # ======================================================================
 
 
-def tqdm_(iter, desc, position):
-    if position is not None:
-        iter = tqdm(iter,
-                    desc=desc,
-                    leave=None,
-                    position=position)
-    return iter
-
-
 class FeatureSubsampler(BaseEstimator, RegressorMixin):
     def __init__(self, estimator, n_features_per_group):
         self.estimator = estimator
@@ -240,80 +231,6 @@ class MultiOutputTrainer(BaseEstimator, RegressorMixin):
     def predict(self, X):
         check_is_fitted(self, 'is_fitted_')
         return self.model.predict(X) @ self.weights
-
-
-# alternative way of implementing FeatureNeutralizer:
-# instead of giving groups as separate argument, give them inside X
-# adv: more compatible with sklearn
-# disadv: can't use GridSearchCV anyway (unpractical), bandaid, 
-# less clarity when using class
-class FeatureNeutralizer(BaseEstimator):
-    def __init__(self, estimator, n_features, alpha):
-        self.estimator = estimator
-        self.n_features = n_features
-        self.alpha = alpha
-
-    def fit(self, X, y, **fit_params):
-        # X, y = check_X_y(X, y, accept_sparse=True)
-        self.estimator.fit(X, y, **fit_params)
-        self.is_fitted_ = True
-        return self
-    
-    # this function is only meant to be used by predict
-    def compute_y_pred(self, X):
-        # checks
-        X = check_array(X, accept_sparse=True)
-        check_is_fitted(self, 'is_fitted_')
-        # computations
-        self.y_pred = self.estimator.predict(X)
-
-    # this function is only meant to be used by predict
-    def compute_y_linr(self, X, groups):
-        # checks
-        X = check_array(X, accept_sparse=True)
-        check_is_fitted(self, 'is_fitted_')
-        if not hasattr(self, 'y_pred'):
-            self.compute_y_pred(X)
-        if self.n_features == 0:
-            self.y_linr = 0
-            return
-        # computations
-        y_pred = self.y_pred
-        groups = np_(groups)
-        # n riskiest features
-        exposures = corr(X, y_pred, rank_a=groups, rank_b=groups)
-        riskiest = [(v, i) for i, v in enumerate(exposures)]
-        riskiest = sorted(riskiest, reverse=True)
-        riskiest = riskiest[0:self.n_features]
-        riskiest = [i for _, i in riskiest]
-        # auxiliary function
-        def aux_linreg(df):
-            X_ = df[df.columns[0:-1]]
-            y_ = df[df.columns[-1]]
-            model = LinearRegression()
-            model.fit(X_, y_)
-            return pd.Series(model.predict(X_) - model.intercept_)
-        # result
-        R = X[:, riskiest]
-        df_Ry = pd.DataFrame(np.hstack((R, np.atleast_2d(y_pred).T)))
-        self.y_linr = df_Ry.groupby(groups).apply(aux_linreg).to_numpy()
-
-    def predict(self, X, groups):
-        # checks
-        X = check_array(X, accept_sparse=True)
-        check_is_fitted(self, 'is_fitted_')
-        if not hasattr(self, 'y_pred'):
-            self.compute_y_pred(X)
-        if not hasattr(self, 'y_linr'):
-            self.compute_y_linr(X, groups)
-        # computations
-        return self.y_pred - self.alpha * self.y_linr
-
-    # cannot import score from regressor mixin
-    # because predict needs a groups parameter
-    def score(self, X, y, groups, sample_weight=None):
-        y_pred = self.predict(X, groups)
-        return r2_score(y, y_pred, sample_weight=sample_weight)
 
 
 # The following class is taken from the examples from Numerai
