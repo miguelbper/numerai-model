@@ -8,12 +8,15 @@ import joblib
 import gc
 from utils import *
 
+pth = 'model-0'
 
 # ======================================================================
 # download data
 # ======================================================================
 
-napi = NumerAPI()
+pub, sec = joblib.load('keys.pkl')
+
+napi = NumerAPI(pub, sec)
 round = napi.get_current_round()
 era = round + 695
 napi.download_dataset('v4/features.json', 'data/features.json')
@@ -35,9 +38,7 @@ params = {
     'device': 'gpu',
 }
 
-do_cv = False
-
-if do_cv:
+if False:
 
     x_cols = FEAT_L
     eras = None
@@ -79,7 +80,7 @@ if do_cv:
             e_trn = e.iloc[trn]
             e_val = e.iloc[val]
 
-            model_name = f'model-0/saved-variables/cv_era_{i}_{j}.pkl'
+            model_name = f'{pth}/saved-variables/cv_era_{i}_{j}.pkl'
             try:
                 model = joblib.load(model_name)
             except:
@@ -87,7 +88,7 @@ if do_cv:
                 model.fit(X_trn, y_trn, eras=e_trn)
                 joblib.dump(model, model_name)
 
-            y_name = f'model-0/saved-variables/y_era_{i}_{j}.pkl'
+            y_name = f'{pth}/saved-variables/y_era_{i}_{j}.pkl'
             try:
                 y_val_pred = joblib.load(y_name)
             except:
@@ -99,7 +100,7 @@ if do_cv:
 
     cv_era = pd.DataFrame(cv_era)
     cv_era['mean'] = cv_era[[f'split_{j+1}' for j in range(n_splits)]].mean(axis=1)
-    cv_era.to_excel('model-0/cross-validation/cv_era.xlsx')
+    cv_era.to_excel(f'{pth}/cross-validation/cv_era.xlsx')
     n_subsamples = cv_era['n_subsamples'][cv_era['mean'].argmax()] 
     # n_subsamples = 7
 
@@ -152,7 +153,7 @@ if do_cv:
         e_trn = e.iloc[trn]
         e_val = e.iloc[val]
 
-        model_name = f'model-0/saved-variables/cv_targets_{j}.pkl'
+        model_name = f'{pth}/saved-variables/cv_targets_{j}.pkl'
         try:
             model = joblib.load(model_name)
         except IOError:
@@ -162,7 +163,7 @@ if do_cv:
             model.fit(X_trn, y_trn, eras=e_trn)
             joblib.dump(model, model_name)
 
-        y_name = f'model-0/saved-variables/y_targets_{j}.pkl'
+        y_name = f'{pth}/saved-variables/y_targets_{j}.pkl'
         try:
             y_val_pred = joblib.load(y_name)
         except:
@@ -191,7 +192,7 @@ if do_cv:
 
     cv_tar = pd.DataFrame(cv_tar)
     cv_tar['mean'] = cv_tar[[f'split_{j+1}' for j in range(n_splits)]].mean(axis=1)
-    cv_tar.to_excel('model-0/cross-validation/cv_tar.xlsx')
+    cv_tar.to_excel(f'{pth}/cross-validation/cv_tar.xlsx')
 
     ar_max = cv_tar['mean'].argmax()
     w0 = cv_tar['w[0]'][ar_max]
@@ -226,7 +227,7 @@ model = MultiOutputTrainer(model, weights=w)
 # train
 # ----------------------------------------------------------------------
 
-model_name = 'model-0/saved-variables/lgbm.pkl'
+model_name = f'{pth}/saved-variables/model.pkl'
 try:
     model = joblib.load(model_name)
 except:
@@ -239,17 +240,23 @@ except:
 # validation
 # ----------------------------------------------------------------------
 
-df = read_data('validation', FEAT_L)
-df[Y_PRED] = model.predict(df[X_COLS], groups=df[ERA])
-df[Y_RANK] = df[Y_PRED].rank(pct=True)
-df[Y_RANK].to_csv(f'model-0/predictions/lgbm_val_{round}_{now_dt()}.csv')
+if False:
+    df = read_data('validation', FEAT_L)
+    df[Y_PRED] = model.predict(df[X_COLS])
+    df[Y_RANK] = df[Y_PRED].rank(pct=True)
+    df[Y_RANK].to_csv(f'{pth}/predictions/val_{round}_{now_dt()}.csv')
 
 
 # ----------------------------------------------------------------------
 # live
 # ----------------------------------------------------------------------
 
+pred_name = f'{pth}/predictions/liv_{round}.csv'
+
 df = read_data('live', FEAT_L)
-df[Y_PRED] = model.predict(df[X_COLS], groups=df[ERA])
+df[Y_PRED] = model.predict(df[X_COLS])
 df[Y_RANK] = df[Y_PRED].rank(pct=True)
-df[Y_RANK].to_csv(f'model-0/predictions/lgbm_live_{round}_{now_dt()}.csv')
+df[Y_RANK].to_csv(pred_name)
+
+model_id = napi.get_models()['mbp_0']
+napi.upload_predictions(pred_name, model_id=model_id)
