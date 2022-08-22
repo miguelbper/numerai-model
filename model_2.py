@@ -19,9 +19,9 @@ pub, sec = joblib.load('keys.pkl')
 napi = NumerAPI(pub, sec)
 round = napi.get_current_round()
 era = round + 695
-napi.download_dataset('v4/features.json', 'data/features.json')
-napi.download_dataset('v4/train_int8.parquet', 'data/train.parquet')
-napi.download_dataset('v4/validation_int8.parquet', 'data/validation.parquet')
+# napi.download_dataset('v4/features.json', 'data/features.json')
+# napi.download_dataset('v4/train_int8.parquet', 'data/train.parquet')
+# napi.download_dataset('v4/validation_int8.parquet', 'data/validation.parquet')
 napi.download_dataset('v4/live_int8.parquet', f'data/live_{round}.parquet')
 
 
@@ -38,7 +38,7 @@ params = {
     'device': 'gpu',
 }
 
-if True:
+if False:
 
     x_cols = FEAT_L
     eras = None
@@ -65,7 +65,7 @@ if True:
     # number of era subsamples
     # ----------------------------------------------------------------------
 
-    ran_ns = [4, 6, 7, 8, 12]
+    ran_ns = range(4, 13)
 
     cv_era = {'n_subsamples': []}
     for j in range(n_splits):
@@ -208,11 +208,11 @@ if True:
     w8 = cv_tar['w[8]'][ar_max]
     w = np.array([w0, w1, w2, 0, w4, 0, 0, 0, w8, 0])
     print(f'w = {w}')
-    # w = [0.6, 0.1, -0.25, 0, 0.2, 0, 0, 0, 0.35, 0]
+    # w = [0.5, 0.1, -0.1, 0, 0.15, 0, 0, 0, 0.35, 0]
 
 else:
     n_subsamples = 7
-    w = np.array([0.6, 0.1, -0.25, 0, 0.2, 0, 0, 0, 0.35, 0])
+    w = np.array([0.5, 0.1, -0.1, 0, 0.15, 0, 0, 0, 0.35, 0])
 
 y_inds = [0, 1, 2, 4, 8]
 y_cols = [Y_COLS[i] for i in y_inds]

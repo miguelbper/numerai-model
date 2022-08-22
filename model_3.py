@@ -8,7 +8,7 @@ import joblib
 import gc
 from utils import *
 
-pth = 'model-0'
+pth = 'model-3'
 
 # ======================================================================
 # download data
@@ -38,13 +38,15 @@ params = {
     'device': 'gpu',
 }
 
-if False:
+if True:
 
     x_cols = FEAT_L
     eras = None
     n_splits = 4
 
-    df = read_data('train', x_cols, Y_COLS, eras=eras)
+    df = read_data('validation', X_COLS, Y_COLS)
+    df = df[df[DATA] == 'validation']
+
     X = df[x_cols]
     Y = df[Y_COLS]
     y = df[Y_TRUE]
@@ -101,8 +103,8 @@ if False:
     cv_era = pd.DataFrame(cv_era)
     cv_era['mean'] = cv_era[[f'split_{j+1}' for j in range(n_splits)]].mean(axis=1)
     cv_era.to_excel(f'{pth}/cross-validation/cv_era.xlsx')
-    n_subsamples = cv_era['n_subsamples'][cv_era['mean'].argmax()] 
-    # n_subsamples = 7
+    # n_subsamples = cv_era['n_subsamples'][cv_era['mean'].argmax()] 
+    n_subsamples = 4 # 1 is actually best, but uses much RAM
 
 
     # ----------------------------------------------------------------------
@@ -125,10 +127,10 @@ if False:
     # consider only targets 0, 1, 2, 4, 8 and choose the weights which give
     # the best corr (on average, over the splits)
 
-    ran_w1 = [x / 100 for x in range(0, 20, 5)]
-    ran_w2 = [x / 100 for x in range(-30, 5, 5)]
-    ran_w4 = [x / 100 for x in range(0, 30, 5)]
-    ran_w8 = [x / 100 for x in range(0, 45, 5)]
+    ran_w1 = [x / 100 for x in range(0, 30, 5)]
+    ran_w2 = [x / 100 for x in range(-40, 5, 5)]
+    ran_w4 = [x / 100 for x in range(0, 40, 5)]
+    ran_w8 = [x / 100 for x in range(0, 55, 5)]
     len_ws = len(ran_w1) * len(ran_w2) * len(ran_w4) * len(ran_w8)
 
     cv_tar = {
@@ -202,11 +204,11 @@ if False:
     w8 = cv_tar['w[8]'][ar_max]
     w = np.array([w0, w1, w2, 0, w4, 0, 0, 0, w8, 0])
     print(f'w = {w}')
-    # w = [0.6, 0.1, -0.25, 0, 0.2, 0, 0, 0, 0.35, 0]
+    # w = [0.5, 0.1, -0.1, 0, 0.15, 0, 0, 0, 0.35, 0]
 
 else:
     n_subsamples = 7
-    w = np.array([0.6, 0.1, -0.25, 0, 0.2, 0, 0, 0, 0.35, 0])
+    w = np.array([0.5, 0.1, -0.1, 0, 0.15, 0, 0, 0, 0.35, 0])
 
 y_inds = [0, 1, 2, 4, 8]
 y_cols = [Y_COLS[i] for i in y_inds]
@@ -229,7 +231,9 @@ model_name = f'{pth}/saved-variables/model.pkl'
 try:
     model = joblib.load(model_name)
 except:
-    df = read_data('train', X_COLS, y_cols)
+    df = read_data('validation', X_COLS, y_cols)
+    df = df[df[DATA] == 'validation']
+
     model.fit(df[X_COLS], df[y_cols], eras=df[ERA])
     joblib.dump(model, model_name)
 
@@ -256,5 +260,5 @@ df[Y_PRED] = model.predict(df[X_COLS])
 df[Y_RANK] = df[Y_PRED].rank(pct=True)
 df[Y_RANK].to_csv(pred_name)
 
-model_id = napi.get_models()['mbp_0']
+model_id = napi.get_models()['mbp_3']
 napi.upload_predictions(pred_name, model_id=model_id)
