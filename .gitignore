@@ -128,7 +128,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Datasets
+# Other
 *.parquet
 *.png
 *.csv
@@ -137,3 +137,4 @@ dmypy.json
 *.markdown
 *.txt
 *.xlsx
+dummy.py

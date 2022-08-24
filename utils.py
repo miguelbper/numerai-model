@@ -293,6 +293,18 @@ def read_data(name, x_cols, y_cols, eras=None):
     return df
 
 
+def read_df(dataset, x_cols, y_cols, eras=None):
+    return read_data(dataset, x_cols, y_cols, eras)
+
+
+def read_Xy(dataset, x_cols, y_cols, eras=None):
+    df = read_df(dataset, x_cols, y_cols, eras=None)
+    X = df[x_cols]
+    y = df[y_cols]
+    return X, y
+
+
+
 def maximum(f, n, k=0.01, n_iters=10000):
     def w_new(i_dec, i_inc, w):
         w_ret = np.copy(w)
