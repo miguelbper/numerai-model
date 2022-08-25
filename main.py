@@ -1,42 +1,137 @@
-import joblib
+from lightgbm import LGBMRegressor
 from utils import *
 
-class Model():
-    def __init__(self, estimator, name, dataset, x_cols, y_cols, eras=None):
-        self.estimator = estimator
-        self.name = name
-        self.dataset = dataset
-        self.x_cols = x_cols
-        self.y_cols = y_cols
-        self.eras = eras
 
-    def train(self):
-        model_path = f'models/{self.name}.pkl'
-        try:
-            self.estimator = joblib.load(model_path)
-            print(f'Loaded model {self.name}')
-        except:
-            print(f"Couldn't load model {self.name}. Training model")
-            X, y = read_Xy(self.dataset, self.x_cols, self.y_cols, self.eras)
-            self.estimator.fit(X, y)
-            joblib.dump(self.estimator, model_path)
+update_dataset('live')
 
-    def submit(self):
-        pub, sec = joblib.load('keys.pkl')
-        napi = NumerAPI(pub, sec)
-        round = napi.get_current_round()
-        pred_path = f'predictions/{self.name}/liv_{round}.csv'
+# ======================================================================
+# define models
+# ======================================================================
 
-        df = read_df(self.dataset, self.x_cols, self.y_cols, self.eras)
-        df[Y_PRED] = self.estimator.predict(df[self.x_cols])
-        df[Y_RANK] = df[Y_PRED].rank(pct=True)
-        df[Y_RANK].to_csv(pred_path)
+# ----------------------------------------------------------------------
+# definitions
+# ----------------------------------------------------------------------
 
-        model_id = napi.get_models()[self.name]
-        napi.upload_predictions(pred_path, model_id=model_id)
-        print(f'Submited predictions for model {self.name}')
+lgbm0 = {
+    'n_estimators': 2000,
+    'learning_rate': 0.01,
+    'max_depth': 5,
+    'num_leaves': 2**5,
+    'colsample_bytree': 0.1,
+    'device': 'gpu',
+}
 
-models = []
+lgbm1 = {
+    'n_estimators': 20000,
+    'learning_rate': 0.001,
+    'max_depth': 6,
+    'num_leaves': 2**6,
+    'colsample_bytree': 0.1,
+    'device': 'gpu',
+}
+
+
+# ----------------------------------------------------------------------
+# mbp_r
+# ----------------------------------------------------------------------
+
+mbp_r = Model(
+    estimator=RandomRegressor(),
+    name='mbp_r',
+    dataset='train',
+    x_cols=FEAT_S,
+    y_cols=[Y_TRUE],
+    predict_only=True,
+)
+
+
+# ----------------------------------------------------------------------
+# mbp_vn
+# ----------------------------------------------------------------------
+
+mbp_vn = Model(
+    estimator=EraSubsampler(LGBMRegressor(**lgbm0), n_subsamples=4),
+    name='mbp_vn',
+    dataset='full',
+    x_cols=X_COLS,
+    y_cols=[Y_TRUE],
+    eras=np.arange(200, 1000),
+    pass_eras=True,
+    predict_only=True,
+)
+
+
+# ----------------------------------------------------------------------
+# mbp_pr
+# ----------------------------------------------------------------------
+
+mbp_pr = Model(
+    estimator=EraSubsampler(LGBMRegressor(**lgbm1), n_subsamples=4),
+    name='mbp_pr',
+    dataset='full',
+    x_cols=X_COLS,
+    y_cols=[Y_TRUE],
+    eras=np.arange(200, 1000),
+    pass_eras=True,
+    predict_only=True,
+)
+
+
+# ----------------------------------------------------------------------
+# mbp_mo
+# ----------------------------------------------------------------------
+
+w = [0.5, 0.1, -0.1, 0, 0.15, 0, 0, 0, 0.35, 0]
+y_inds = [0, 1, 2, 4, 8]
+y_cols = [Y_COLS[i] for i in y_inds]
+w = np.array([w[i] for i in y_inds])
+
+m = LGBMRegressor(**lgbm0)
+m = EraSubsampler(m, n_subsamples=4)
+m = MultiOutputTrainer(m, weights=w)
+
+mbp_mo = Model(
+    estimator=m,
+    name='mbp_mo',
+    dataset='full',
+    x_cols=X_COLS,
+    y_cols=y_cols,
+    eras=np.arange(200, 1000),
+    pass_eras=True,
+    predict_only=True,
+)
+
+
+# ----------------------------------------------------------------------
+# mbp_eb
+# ----------------------------------------------------------------------
+
+
+# ----------------------------------------------------------------------
+# mbp_er
+# ----------------------------------------------------------------------
+
+
+# ----------------------------------------------------------------------
+# mbp_cr
+# ----------------------------------------------------------------------
+
+
+# ----------------------------------------------------------------------
+# mbp_s
+# ----------------------------------------------------------------------
+
+
+# ======================================================================
+# train and submit
+# ======================================================================
+
+models = [
+    mbp_r,
+    mbp_vn,
+    mbp_pr,
+    mbp_mo,
+]
 
 for model in models:
     model.train()

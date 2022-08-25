@@ -58,23 +58,166 @@ X_COLS = FEAT_L
 Y_TRUE = 'target_nomi_v4_20'
 Y_PRED = 'target_prediction'
 Y_RANK = 'prediction' 
-Y_COLS = [
-    'target_nomi_v4_20', 
-    'target_jerome_v4_20', 
-    'target_janet_v4_20', 
-    'target_ben_v4_20', 
-    'target_alan_v4_20', 
-    'target_paul_v4_20', 
-    'target_george_v4_20', 
-    'target_william_v4_20', 
-    'target_arthur_v4_20', 
+Y_FULL = [
+    'target_nomi_v4_20',
+    'target_nomi_v4_60',
+    'target_jerome_v4_20',
+    'target_jerome_v4_60',
+    'target_janet_v4_20',
+    'target_janet_v4_60',
+    'target_ben_v4_20',
+    'target_ben_v4_60',
+    'target_alan_v4_20',
+    'target_alan_v4_60',
+    'target_paul_v4_20',
+    'target_paul_v4_60',
+    'target_george_v4_20',
+    'target_george_v4_60',
+    'target_william_v4_20',
+    'target_william_v4_60',
+    'target_arthur_v4_20',
+    'target_arthur_v4_60',
     'target_thomas_v4_20',
+    'target_thomas_v4_60',
 ]
+Y_COLS = [y for y in Y_FULL if y.endswith('60')]
 
 COLUMNS = [ERA, DATA] + X_COLS + Y_COLS
 
 del feature_metadata
 del f
+
+
+# ======================================================================
+# datasets
+# ======================================================================
+
+def update_dataset(dataset):
+    ''' Downloads, cleans and writes dataset.
+
+    Args: 
+        dataset: a string taking the values 'train', 'validation' or
+        'live'. 
+    '''
+
+    print(f'\nUpdating dataset: {dataset}')
+
+    # download and load dataset
+    napi = NumerAPI()
+    round = napi.get_current_round()
+    era = round + 695
+    name = f'live_{round}' if dataset == 'live' else dataset
+    ds_path = f'data/{name}.parquet'
+    napi.download_dataset(f'v4/{dataset}_int8.parquet', ds_path)
+    df = pd.read_parquet(ds_path)
+
+    # write era
+    if dataset == 'live':
+        df[ERA] = era
+
+    # era to int
+    df[ERA] = df[ERA].astype('int32')
+
+    # fill nans X
+    if df[X_COLS].isnull().values.any():
+        df[X_COLS] = df[X_COLS].fillna(value=2)
+
+    # fill nans y
+    sr = df[DATA].isin(['train', 'validation'])
+    if df.loc[sr, Y_FULL].isnull().values.any():
+        df.loc[sr, Y_FULL] = df.loc[sr, Y_FULL].fillna(value=0.5)
+
+    # write cleaned dataset
+    df.to_parquet(f'data/_{name}.parquet')
+
+
+def read_df(dataset, x_cols, y_cols, eras=None):
+    ''' Reads dataframe from file.
+    
+    Args:
+        dataset: A string taking the values 'train', 'validation', 
+            'live' or 'full'. Here, 'full' means that the returned 
+            dataset is train + validation (the biggest dataset where we 
+            have labels).
+        x_cols: The feature columns that should be read.
+        y_cols: The target columns that should be read.
+        eras: The eras (rows) of the dataframe that should be read. By 
+            default, read all of them (eras=None).
+
+    Returns:
+        A pandas dataframe containing the dataset. 
+    '''
+
+    # definitions
+    napi = NumerAPI()
+    round = napi.get_current_round()
+    name = f'live_{round}' if dataset == 'live' else dataset
+    cols = [ERA, DATA] + x_cols + y_cols
+
+    # load dataframe
+    if dataset == 'full':
+        df0 = pd.read_parquet(f'data/_train.parquet', columns=cols)
+        df1 = pd.read_parquet(f'data/_validation.parquet', columns=cols)
+        df1 = df1[df1[DATA] == 'validation']
+        df = pd.concat([df0, df1])
+    else:
+        df = pd.read_parquet(f'data/_{name}.parquet', columns=cols)
+
+    # select eras
+    if eras is not None:
+        df = df[df[ERA].isin(eras)]
+
+    return df
+
+
+def read_Xy(dataset, x_cols, y_cols, eras=None):
+    ''' Reads X, y from file.
+    
+    Args:
+        dataset: A string taking the values 'train', 'validation', 
+            'live' or 'full'. Here, 'full' means that the returned 
+            dataset is train + validation (the biggest dataset where we 
+            have labels).
+        x_cols: The feature columns that should be read.
+        y_cols: The target columns that should be read.
+        eras: The eras (rows) of the dataframe that should be read. By 
+            default, read all of them (eras=None).
+
+    Returns:
+        X: pandas dataframe
+        y: pandas dataframe or series
+    '''
+    df = read_df(dataset, x_cols, y_cols, eras=eras)
+    y_cols = y_cols[0] if len(y_cols) == 1 else y_cols
+    X = df[x_cols]
+    y = df[y_cols]
+    return X, y
+
+
+def read_Xye(dataset, x_cols, y_cols, eras=None):
+    ''' Reads X, y and eras from file.
+    
+    Args:
+        dataset: A string taking the values 'train', 'validation', 
+            'live' or 'full'. Here, 'full' means that the returned 
+            dataset is train + validation (the biggest dataset where we 
+            have labels).
+        x_cols: The feature columns that should be read.
+        y_cols: The target columns that should be read.
+        eras: The eras (rows) of the dataframe that should be read. By 
+            default, read all of them (eras=None).
+
+    Returns:
+        X: pandas dataframe
+        y: pandas dataframe or series
+        e: pandas series
+    '''
+    df = read_df(dataset, x_cols, y_cols, eras=eras)
+    y_cols = y_cols[0] if len(y_cols) == 1 else y_cols
+    X = df[x_cols]
+    y = df[y_cols]
+    e = df[ERA]
+    return X, y, e
 
 
 # ======================================================================
@@ -149,6 +292,37 @@ def objective_corr_num(y_true, y_pred):
     hess = - (corr_plus + corr_minu - 2*corr_zero) / h**2
 
     return grad, hess
+
+
+# ======================================================================
+# utils
+# ======================================================================
+
+
+def now_dt():
+    return datetime.now().strftime('%Y-%m-%d-%H-%M')
+
+
+def maximum(f, n, k=0.01, n_iters=10000):
+    def w_new(i_dec, i_inc, w):
+        w_ret = np.copy(w)
+        w_ret[i_dec] -= k
+        w_ret[i_inc] += k
+        return w_ret
+
+    w = np.ones(n) / n
+
+    for _ in range(n_iters):
+        pairs = product(range(n), range(n))
+        values = [(f(w_new(i_dec, i_inc, w)), i_dec, i_inc)
+                  for i_dec, i_inc in pairs]
+        values = sorted(values, reverse=True)
+        _, i_dec, i_inc = values[0]
+        if i_dec == i_inc:
+            break
+        w = w_new(i_dec, i_inc, w)
+
+    return w
 
 
 # ======================================================================
@@ -243,6 +417,74 @@ class MultiOutputTrainer(BaseEstimator, RegressorMixin):
         return self.model.predict(X) @ self.weights
 
 
+class EraBooster(BaseEstimator, RegressorMixin):
+    def __init__(self, estimator, n_iters, percent_eras):
+        self.estimator = estimator
+        self.n_iters = n_iters
+        self.percent_eras = percent_eras
+
+    def fit(self, X, y, eras_boost, **fit_params):
+        X, y = check_X_y(X, y, accept_sparse=True)
+
+        u_eras = eras_boost.unique()
+        n_eras = len(u_eras)
+        m_eras = round(self.percent_eras * n_eras)
+        n = self.n_iters
+        self.model = [deepcopy(self.estimator) for _ in range(n)]
+        predictions = np.zeros((len(X), 0))
+        worst_eras = np.arange(len(X))
+
+        for i in tqdm(range(n), desc='EraBooster fit'):
+            X_ = X[worst_eras]
+            y_ = y[worst_eras]
+
+            self.model[i].fit(X_, y_, **fit_params)
+
+            y_pred_new = self.model[i].predict(X)
+            y_pred_res = np.reshape(y_pred_new, (-1, 1))
+            predictions = np.concatenate((predictions, y_pred_res), axis=1)
+            y_pred = np.mean(predictions, axis=1)
+
+            def corr_aux(era):
+                dfy = pd.DataFrame({'era': eras_boost, 'yt': y, 'yp': y_pred})
+                y_true_era = dfy['yt'][dfy['era'] == era]
+                y_pred_era = dfy['yp'][dfy['era'] == era]
+                return corr(y_true_era, y_pred_era, rank_b=True)
+            corrs = [(corr_aux(era), era) for era in u_eras]
+            worst_eras = [e for _, e in sorted(corrs)[:m_eras]]
+            worst_eras = np.array([i for i, e in enumerate(eras_boost) 
+                                   if e in worst_eras])
+
+        self.is_fitted = True
+        return self
+
+    def predict(self, X):
+        X = check_array(X, accept_sparse=True)
+        check_is_fitted(self, 'is_fitted_')
+
+        n = self.n_iters
+        y_pred = 0
+        for i in tqdm(range(n), desc='EraBooster predict'):
+            y_pred += self.model[i].predict(X)
+        y_pred /= n
+
+        return y_pred
+
+
+class RandomRegressor(BaseEstimator, RegressorMixin):
+    def __init__(self):
+        pass
+
+    def fit(self, X, y, **fit_params):
+        self.is_fitted_ = True
+        return self
+
+    def predict(self, X):
+        X = check_array(X, accept_sparse=True)
+        check_is_fitted(self, 'is_fitted_')
+        return np.random.rand(X.shape[0])
+
+
 # The following class is taken from the examples from Numerai
 class TimeSeriesSplitGroups(_BaseKFold):
     def __init__(self, n_splits=5):
@@ -269,60 +511,51 @@ class TimeSeriesSplitGroups(_BaseKFold):
                    indices[groups.isin(group_list[test_start
                                                   :test_start + test_size])])
 
-# ======================================================================
-# utils
-# ======================================================================
 
+class Model():
+    def __init__(self, estimator, name, dataset, x_cols, y_cols, eras=None,
+                 pass_eras=False, predict_only=False):
+        self.estimator = estimator
+        self.name = name
+        self.dataset = dataset
+        self.x_cols = x_cols
+        self.y_cols = y_cols
+        self.eras = eras
+        self.pass_eras = pass_eras
+        self.predict_only = predict_only
 
-def now_dt():
-    return datetime.now().strftime('%Y-%m-%d-%H-%M')
+    def train(self):
+        model_path = f'models/{self.name}.pkl'
+        try:
+            self.estimator = joblib.load(model_path)
+            print(f'Loaded model {self.name}')
+        except:
+            print(f'Model {self.name} is not trained. Training... ', end='')
+            X, y, e = read_Xye(self.dataset, self.x_cols, self.y_cols, 
+                               self.eras)
+            
+            fit_params = dict()
+            if self.pass_eras:
+                fit_params['eras'] = e
+            
+            self.estimator.fit(X, y, **fit_params)
+            joblib.dump(self.estimator, model_path)
+            print('Done.')
 
+    def submit(self):
+        print(f'Predicting model {self.name}... ', end='')
+        pub, sec = joblib.load('keys.pkl')
+        napi = NumerAPI(pub, sec)
+        round = napi.get_current_round()
+        pred_path = f'predictions/{self.name}_{round}.csv'
 
-def read_data(name, x_cols, y_cols, eras=None):
-    if name == 'live':
-        rnd = NumerAPI().get_current_round()
-        name = f'live_{rnd}'
-    cols = [ERA, DATA] + x_cols + y_cols
-    df = pd.read_parquet(f'data/{name}.parquet', columns=cols)
-    if name.startswith('live'):
-        df[ERA] = rnd + 695
-    df[ERA] = df[ERA].astype('int32')
-    df[y_cols] = df[y_cols].fillna(value=0.5)
-    if eras is not None:
-        df = df[df[ERA].isin(eras)]
-    return df
+        df = read_df('live', self.x_cols, self.y_cols)
+        df[Y_PRED] = self.estimator.predict(df[self.x_cols])
+        df[Y_RANK] = df[Y_PRED].rank(pct=True)
+        df[Y_RANK].to_csv(pred_path)
+        print('Done.')
 
-
-def read_df(dataset, x_cols, y_cols, eras=None):
-    return read_data(dataset, x_cols, y_cols, eras)
-
-
-def read_Xy(dataset, x_cols, y_cols, eras=None):
-    df = read_df(dataset, x_cols, y_cols, eras=None)
-    X = df[x_cols]
-    y = df[y_cols]
-    return X, y
-
-
-
-def maximum(f, n, k=0.01, n_iters=10000):
-    def w_new(i_dec, i_inc, w):
-        w_ret = np.copy(w)
-        w_ret[i_dec] -= k
-        w_ret[i_inc] += k
-        return w_ret
-
-    w = np.ones(n) / n
-
-    for _ in range(n_iters):
-        pairs = product(range(n), range(n))
-        values = [(f(w_new(i_dec, i_inc, w)), i_dec, i_inc)
-                  for i_dec, i_inc in pairs]
-        values = sorted(values, reverse=True)
-        _, i_dec, i_inc = values[0]
-        if i_dec == i_inc:
-            break
-        w = w_new(i_dec, i_inc, w)
-        # print(f'i_dec = {i_dec}, i_inc = {i_inc}, w = {w}, f(w) = {f(w)}')
-
-    return w
+        if not self.predict_only:
+            model_id = napi.get_models()[self.name]
+            napi.upload_predictions(pred_path, model_id=model_id)
+            print(f'Submited predictions for model {self.name}')
