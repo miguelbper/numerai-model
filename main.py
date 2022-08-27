@@ -2,6 +2,8 @@ from lightgbm import LGBMRegressor
 from utils import *
 
 
+# update_dataset('train')
+# update_dataset('validation')
 update_dataset('live')
 
 # ======================================================================
