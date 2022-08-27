@@ -18,7 +18,8 @@ from datetime import datetime
 from numerapi import NumerAPI
 from tqdm import trange, tqdm
 from itertools import product
-
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 
 # ======================================================================
 # column names
@@ -275,6 +276,22 @@ def objective_corr(y_true, y_pred):
     return grad, hess
 
 
+def objective_corr_ones(y_true, y_pred):
+    m = len(y_true)
+
+    std_t = np.std(y_true)
+    std_p = np.std(y_pred)
+
+    cov_tp = np.cov(y_true, y_pred, ddof=0)[0, 1]
+    cov_ep = (y_pred - np.mean(y_pred)) / m
+    cov_et = (y_true - np.mean(y_true)) / m
+
+    grad = - (- cov_tp * cov_ep / std_p**3 + cov_et / std_p) / std_t
+    hess = np.ones(m)
+
+    return grad, hess
+
+
 # objective function for corr, numeric (just to test that objective_corr
 # is correct)
 def objective_corr_num(y_true, y_pred):
@@ -329,6 +346,93 @@ def maximum(f, n, k=0.01, n_iters=10000):
 # classes
 # ======================================================================
 
+class EraBooster(BaseEstimator, RegressorMixin):
+    def __init__(self, estimator, n_iters, percent_eras):
+        self.estimator = estimator
+        self.n_iters = n_iters
+        self.percent_eras = percent_eras
+
+    def fit(self, X, y, eras_boost, **fit_params):
+        X, y = check_X_y(X, y, accept_sparse=True)
+
+        u_eras = eras_boost.unique()
+        n_eras = len(u_eras)
+        m_eras = round(self.percent_eras * n_eras)
+        n = self.n_iters
+        self.model = [deepcopy(self.estimator) for _ in range(n)]
+        predictions = np.zeros((len(X), 0))
+        worst_eras = np.arange(len(X))
+
+        for i in tqdm(range(n), desc='EraBooster fit'):
+            X_ = X[worst_eras]
+            y_ = y[worst_eras]
+
+            self.model[i].fit(X_, y_, **fit_params)
+
+            y_pred_new = self.model[i].predict(X)
+            y_pred_res = np.reshape(y_pred_new, (-1, 1))
+            predictions = np.concatenate((predictions, y_pred_res), axis=1)
+            y_pred = np.mean(predictions, axis=1)
+
+            def corr_aux(era):
+                dfy = pd.DataFrame({'era': eras_boost, 'yt': y, 'yp': y_pred})
+                y_true_era = dfy['yt'][dfy['era'] == era]
+                y_pred_era = dfy['yp'][dfy['era'] == era]
+                return corr(y_true_era, y_pred_era, rank_b=True)
+            corrs = [(corr_aux(era), era) for era in u_eras]
+                        
+            worst_eras = [e for _, e in sorted(corrs)[:m_eras]]
+            worst_eras = np.array([i for i, e in enumerate(eras_boost) 
+                                   if e in worst_eras])
+
+        self.is_fitted_ = True
+        return self
+
+    def predict(self, X):
+        X = check_array(X, accept_sparse=True)
+        check_is_fitted(self, 'is_fitted_')
+
+        n = self.n_iters
+        y_pred = 0
+        for i in tqdm(range(n), desc='EraBooster predict'):
+            y_pred += self.model[i].predict(X)
+        y_pred /= n
+
+        return y_pred
+
+
+class EraSubsampler(BaseEstimator, RegressorMixin):
+    def __init__(self, estimator, n_subsamples):
+        self.estimator = estimator
+        self.n_subsamples = n_subsamples
+
+    def fit(self, X, y, eras, **fit_params):
+        X, y = check_X_y(X, y, accept_sparse=True)
+
+        e0 = eras.min()
+        e1 = eras.max() + 1
+        k = self.n_subsamples
+        self.model = [deepcopy(self.estimator) for _ in range(k)]
+        for i in tqdm(range(k), desc='EraSubsampler fit'):
+            self.model[i].fit(X[eras.isin(np.arange(e0 + i, e1, k))], 
+                              y[eras.isin(np.arange(e0 + i, e1, k))],
+                              **fit_params)
+
+        self.is_fitted_ = True
+        return self
+
+    def predict(self, X):
+        X = check_array(X, accept_sparse=True)
+        check_is_fitted(self, 'is_fitted_')
+
+        k = self.n_subsamples
+        y_pred = 0
+        for i in tqdm(range(k), desc='EraSubsampler predict'):
+            y_pred += self.model[i].predict(X)
+        y_pred /= k
+
+        return y_pred
+
 
 class FeatureSubsampler(BaseEstimator, RegressorMixin):
     def __init__(self, estimator, n_features_per_group):
@@ -367,39 +471,6 @@ class FeatureSubsampler(BaseEstimator, RegressorMixin):
         return y_pred
 
 
-class EraSubsampler(BaseEstimator, RegressorMixin):
-    def __init__(self, estimator, n_subsamples):
-        self.estimator = estimator
-        self.n_subsamples = n_subsamples
-
-    def fit(self, X, y, eras, **fit_params):
-        X, y = check_X_y(X, y, accept_sparse=True)
-
-        e0 = eras.min()
-        e1 = eras.max() + 1
-        k = self.n_subsamples
-        self.model = [deepcopy(self.estimator) for _ in range(k)]
-        for i in tqdm(range(k), desc='EraSubsampler fit'):
-            self.model[i].fit(X[eras.isin(np.arange(e0 + i, e1, k))], 
-                              y[eras.isin(np.arange(e0 + i, e1, k))],
-                              **fit_params)
-
-        self.is_fitted_ = True
-        return self
-
-    def predict(self, X):
-        X = check_array(X, accept_sparse=True)
-        check_is_fitted(self, 'is_fitted_')
-
-        k = self.n_subsamples
-        y_pred = 0
-        for i in tqdm(range(k), desc='EraSubsampler predict'):
-            y_pred += self.model[i].predict(X)
-        y_pred /= k
-
-        return y_pred
-
-
 class MultiOutputTrainer(BaseEstimator, RegressorMixin):
     def __init__(self, estimator, weights):
         self.estimator = estimator
@@ -415,60 +486,6 @@ class MultiOutputTrainer(BaseEstimator, RegressorMixin):
         X = check_array(X, accept_sparse=True)
         check_is_fitted(self, 'is_fitted_')
         return self.model.predict(X) @ self.weights
-
-
-class EraBooster(BaseEstimator, RegressorMixin):
-    def __init__(self, estimator, n_iters, percent_eras):
-        self.estimator = estimator
-        self.n_iters = n_iters
-        self.percent_eras = percent_eras
-
-    def fit(self, X, y, eras_boost, **fit_params):
-        X, y = check_X_y(X, y, accept_sparse=True)
-
-        u_eras = eras_boost.unique()
-        n_eras = len(u_eras)
-        m_eras = round(self.percent_eras * n_eras)
-        n = self.n_iters
-        self.model = [deepcopy(self.estimator) for _ in range(n)]
-        predictions = np.zeros((len(X), 0))
-        worst_eras = np.arange(len(X))
-
-        for i in tqdm(range(n), desc='EraBooster fit'):
-            X_ = X[worst_eras]
-            y_ = y[worst_eras]
-
-            self.model[i].fit(X_, y_, **fit_params)
-
-            y_pred_new = self.model[i].predict(X)
-            y_pred_res = np.reshape(y_pred_new, (-1, 1))
-            predictions = np.concatenate((predictions, y_pred_res), axis=1)
-            y_pred = np.mean(predictions, axis=1)
-
-            def corr_aux(era):
-                dfy = pd.DataFrame({'era': eras_boost, 'yt': y, 'yp': y_pred})
-                y_true_era = dfy['yt'][dfy['era'] == era]
-                y_pred_era = dfy['yp'][dfy['era'] == era]
-                return corr(y_true_era, y_pred_era, rank_b=True)
-            corrs = [(corr_aux(era), era) for era in u_eras]
-            worst_eras = [e for _, e in sorted(corrs)[:m_eras]]
-            worst_eras = np.array([i for i, e in enumerate(eras_boost) 
-                                   if e in worst_eras])
-
-        self.is_fitted = True
-        return self
-
-    def predict(self, X):
-        X = check_array(X, accept_sparse=True)
-        check_is_fitted(self, 'is_fitted_')
-
-        n = self.n_iters
-        y_pred = 0
-        for i in tqdm(range(n), desc='EraBooster predict'):
-            y_pred += self.model[i].predict(X)
-        y_pred /= n
-
-        return y_pred
 
 
 class RandomRegressor(BaseEstimator, RegressorMixin):
@@ -514,7 +531,7 @@ class TimeSeriesSplitGroups(_BaseKFold):
 
 class Model():
     def __init__(self, estimator, name, dataset, x_cols, y_cols, eras=None,
-                 pass_eras=False, predict_only=False):
+                 pass_eras=False, pass_eras_boost=False, predict_only=False):
         self.estimator = estimator
         self.name = name
         self.dataset = dataset
@@ -522,6 +539,7 @@ class Model():
         self.y_cols = y_cols
         self.eras = eras
         self.pass_eras = pass_eras
+        self.pass_eras_boost = pass_eras_boost
         self.predict_only = predict_only
 
     def train(self):
@@ -537,7 +555,9 @@ class Model():
             fit_params = dict()
             if self.pass_eras:
                 fit_params['eras'] = e
-            
+            if self.pass_eras_boost:
+                fit_params['eras_boost'] = e
+
             self.estimator.fit(X, y, **fit_params)
             joblib.dump(self.estimator, model_path)
             print('Done.')

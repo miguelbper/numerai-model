@@ -1,0 +1,1 @@
+class LGBMEraBoosterCV(BaseEstimator, RegressorMixin):
