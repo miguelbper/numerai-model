@@ -265,7 +265,7 @@ class EraBooster(BaseEstimator, RegressorMixin):
         predictions = np.zeros((len(X), 0))
         worst_eras = np.arange(len(X))
 
-        for i in tqdm(range(n), desc='EraBooster fit'):
+        for i in range(n): #tqdm(range(n), desc='EraBooster fit'):
             X_ = X[worst_eras]
             y_ = y[worst_eras]
 
@@ -300,7 +300,7 @@ class EraBooster(BaseEstimator, RegressorMixin):
 
         n = self.n_iters
         y_pred = 0
-        for i in tqdm(range(n), desc='EraBooster predict'):
+        for i in range(n): # tqdm(range(n), desc='EraBooster predict'):
             y_pred += self.model[i].predict(X)
         y_pred /= n
 
@@ -439,55 +439,3 @@ class TimeSeriesSplitGroups(_BaseKFold):
             yield (indices[groups.isin(group_list[:test_start])],
                    indices[groups.isin(group_list[test_start
                                                   :test_start + test_size])])
-
-
-class Model():
-    def __init__(self, estimator, name, dataset, x_cols, y_cols, eras=None,
-                 pass_eras=False, pass_eras_boost=False, predict_only=False):
-        self.estimator = estimator
-        self.name = name
-        self.dataset = dataset
-        self.x_cols = x_cols
-        self.y_cols = y_cols
-        self.eras = eras
-        self.pass_eras = pass_eras
-        self.pass_eras_boost = pass_eras_boost
-        self.predict_only = predict_only
-
-    def train(self):
-        model_path = f'models/{self.name}.pkl'
-        try:
-            self.estimator = joblib.load(model_path)
-            print(f'Loaded model {self.name}')
-        except:
-            print(f'Model {self.name} is not trained. Training... ', end='')
-            X, y, e = read_Xye(self.dataset, self.x_cols, self.y_cols, 
-                               self.eras)
-            
-            fit_params = dict()
-            if self.pass_eras:
-                fit_params['eras'] = e
-            if self.pass_eras_boost:
-                fit_params['eras_boost'] = e
-
-            self.estimator.fit(X, y, **fit_params)
-            joblib.dump(self.estimator, model_path)
-            print('Done.')
-
-    def submit(self):
-        print(f'Predicting model {self.name}... ', end='')
-        pub, sec = joblib.load('keys.pkl')
-        napi = NumerAPI(pub, sec)
-        round = napi.get_current_round()
-        pred_path = f'predictions/{self.name}_{round}.csv'
-
-        df = read_df('live', self.x_cols, self.y_cols)
-        df[Y_PRED] = self.estimator.predict(df[self.x_cols])
-        df[Y_RANK] = df[Y_PRED].rank(pct=True)
-        df[Y_RANK].to_csv(pred_path)
-        print('Done.')
-
-        if not self.predict_only:
-            model_id = napi.get_models()[self.name]
-            napi.upload_predictions(pred_path, model_id=model_id)
-            print(f'Submited predictions for model {self.name}')
