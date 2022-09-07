@@ -5,12 +5,16 @@ import numpy as np
 from lightgbm import LGBMRegressor
 from utils import *
 import os
+import joblib
 
 
 # ======================================================================
-# NumerApi + update datasets
+# NumerAPI + update datasets
 # ======================================================================
-pub, sec = '' # TODO: have keys in a json
+with open('data/keys.json', 'r') as f:
+    keys = json.load(f)
+pub = keys['public']
+sec = keys['secret']
 napi = NumerAPI(pub, sec)
 round = napi.get_current_round()
 update_dataset('train')
@@ -30,7 +34,6 @@ params = {
     'device': 'gpu',
 }
 n_subsamples = 4
-# TODO: check in old code that 0, 1, 4, 8 are the desired targets
 y_cols = [
     'target_nomi_v4_20',    # 0, weight = 1/2
     'target_jerome_v4_20',  # 1, weight = 1/6 

@@ -1,9 +1,7 @@
 # ======================================================================
 # imports
 # ======================================================================
-
 import json
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -14,11 +12,11 @@ from copy import deepcopy
 from math import ceil
 from numerapi import NumerAPI
 
+
 # ======================================================================
 # column names
 # ======================================================================
 
-# TODO: download features.json in utils
 with open('data/features.json', 'r') as f:
     feature_metadata = json.load(f)
 
