@@ -18,6 +18,7 @@ from numerapi import NumerAPI
 # column names
 # ======================================================================
 
+# TODO: download features.json in utils
 with open('data/features.json', 'r') as f:
     feature_metadata = json.load(f)
 
