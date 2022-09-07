@@ -397,21 +397,7 @@ class MultiOutputTrainer(BaseEstimator, RegressorMixin):
         return self.model.predict(X) @ self.weights
 
 
-class RandomRegressor(BaseEstimator, RegressorMixin):
-    def __init__(self):
-        pass
-
-    def fit(self, X, y, **fit_params):
-        self.is_fitted_ = True
-        return self
-
-    def predict(self, X):
-        X = check_array(X, accept_sparse=True)
-        check_is_fitted(self, 'is_fitted_')
-        return np.random.rand(X.shape[0])
-
-
-# The following class is taken from the examples from Numerai
+# The following class is taken from the Numerai example scripts
 class TimeSeriesSplitGroups(_BaseKFold):
     def __init__(self, n_splits=5):
         super().__init__(n_splits, shuffle=False, random_state=None)
