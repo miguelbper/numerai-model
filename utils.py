@@ -12,10 +12,7 @@ from sklearn.model_selection._split import _BaseKFold, indexable, _num_samples
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 from copy import deepcopy
 from math import ceil
-from datetime import datetime
 from numerapi import NumerAPI
-from tqdm import tqdm
-from itertools import product
 
 # ======================================================================
 # column names
@@ -77,7 +74,7 @@ Y_FULL = [
     'target_thomas_v4_20',
     'target_thomas_v4_60',
 ]
-Y_COLS = [y for y in Y_FULL if y.endswith('60')]
+Y_COLS = [y for y in Y_FULL if y.endswith('20')]
 
 COLUMNS = [ERA, DATA] + X_COLS + Y_COLS
 
@@ -265,7 +262,7 @@ class EraBooster(BaseEstimator, RegressorMixin):
         predictions = np.zeros((len(X), 0))
         worst_eras = np.arange(len(X))
 
-        for i in range(n): #tqdm(range(n), desc='EraBooster fit'):
+        for i in range(n):
             X_ = X[worst_eras]
             y_ = y[worst_eras]
 
@@ -300,7 +297,7 @@ class EraBooster(BaseEstimator, RegressorMixin):
 
         n = self.n_iters
         y_pred = 0
-        for i in range(n): # tqdm(range(n), desc='EraBooster predict'):
+        for i in range(n):
             y_pred += self.model[i].predict(X)
         y_pred /= n
 
@@ -321,7 +318,7 @@ class EraSubsampler(BaseEstimator, RegressorMixin):
         k = self.n_subsamples
         self.model = [deepcopy(self.estimator) for _ in range(k)]
         
-        for i in tqdm(range(k), desc='EraSubsampler fit'):
+        for i in range(k):
             era_indices = eras.isin(np.arange(e0 + i, e1, k))
 
             fit_params_0 = dict(fit_params)
@@ -339,7 +336,7 @@ class EraSubsampler(BaseEstimator, RegressorMixin):
 
         k = self.n_subsamples
         y_pred = 0
-        for i in tqdm(range(k), desc='EraSubsampler predict'):
+        for i in range(k):
             y_pred += self.model[i].predict(X)
         y_pred /= k
 
@@ -359,7 +356,7 @@ class FeatureSubsampler(BaseEstimator, RegressorMixin):
         l = l if l > 0 else n
         k = ceil(n / l)
         self.model = [deepcopy(self.estimator) for _ in range(k)]
-        for i in tqdm(range(k), desc='FeatureSubsampler fit'):
+        for i in range(k):
             feature_indices = range(i * l, min((i + 1) * l, n))
             self.model[i].fit(X[:, feature_indices], y, **fit_params)
 
@@ -375,7 +372,7 @@ class FeatureSubsampler(BaseEstimator, RegressorMixin):
         l = l if l > 0 else n
         k = ceil(n / l)
         y_pred = 0
-        for i in tqdm(range(k), desc='FeatureSubsampler predict'):
+        for i in range(k):
             feature_indices = range(i * l, min((i + 1) * l, n))
             y_pred += self.model[i].predict(X[:, feature_indices])
         y_pred /= k
