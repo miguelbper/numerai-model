@@ -137,8 +137,5 @@ dmypy.json
 *.markdown
 *.txt
 *.xlsx
-dummy.py
-/_old
-/catboost_info
-keys.json
+*.json
 run.py
