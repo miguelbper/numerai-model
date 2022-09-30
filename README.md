@@ -1,2 +1,2 @@
-# numerai
-My models for the numerai tournament.
+# Numerai
+My model for the Numerai tournament (see https://numer.ai/).
